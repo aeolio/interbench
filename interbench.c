@@ -1406,10 +1406,10 @@ void run_benchchild(int i, int j)
 	wait_on(m2b[0]);
 	stop_thread(thi);
 
-	if (ud.do_rt) {
-		set_thread_normal(thi->pthread);
+	/* remove global memlock */
+	if (ud.do_rt)
 		set_munlock();
-	}
+
 	show_latencies(thi);
 
 	/* Tell main we've finished */
