@@ -2,9 +2,11 @@ CC=gcc
 CFLAGS=-W -Wall -g -O2 -s -pipe
 LDFLAGS=-lrt -lm -pthread
 
-interbench: interbench.o hackbench.o -lm
-interbench.o: interbench.c
-hackbench.o: hackbench.c
+target = interbench
+objects = interbench.o hackbench.o
+
+$(target): $(objects)
+	$(CC) -o $(target) $(objects) $(LDFLAGS)
 
 clean:
 	rm -f *.o interbench interbench.read interbench.write interbench.loops_per_ms *~
