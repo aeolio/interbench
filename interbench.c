@@ -765,7 +765,8 @@ void emulate_read(struct thread *th)
 	}
 }
 
-#define RINGTHREADS	(ud.cpu_load)
+/* having a ring consisting of only one element makes no sense */ 
+#define RINGTHREADS	(ud.cpu_load + 1)
 
 struct thread *ringthreads;
 
@@ -803,7 +804,7 @@ void emulate_ring(struct thread *th)
 	sem_t *s = &th->sem.stop;
 	unsigned int i;
 
-	ringthreads = calloc(sizeof(struct thread), RINGTHREADS + 1);
+	ringthreads = calloc(sizeof(struct thread), RINGTHREADS);
 	for (i = 0 ; i < RINGTHREADS ; i++) {
 		init_all_sems(&ringthreads[i].sem);
 		create_pthread(&ringthreads[i].pthread, NULL, 
