@@ -1064,14 +1064,14 @@ void calibrate_loop(int affinity)
 
 	loops_per_msec = 1000000;
 	accuracy = 0.01;
-	duration = 1000000; /* one millisecond */
+	duration = 1000000; /* one second */
 	loop_counter = 0;
 	redo_counter = 0;
 	start_time = get_usecs(&myts);
 	/* Run for at least one second for cpu frequency to hit maximum */
 	do {
 		burn_loops(loops_per_msec);
-	} while (get_usecs(&myts) - start_time < 1000000);
+	} while (get_usecs(&myts) - start_time < duration);
 
 redo:
 
