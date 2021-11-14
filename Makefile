@@ -1,6 +1,6 @@
-CC=gcc
-CFLAGS=-W -Wall -g -O2 -s -pipe
-LDFLAGS=-lrt -lm -pthread
+CC := gcc
+CFLAGS := -O2 -pthread -Wall -Wextra
+LDFLAGS := -lm -lrt -pthread -s
 
 target = interbench
 objects = interbench.o hackbench.o
@@ -10,3 +10,4 @@ $(target): $(objects)
 
 clean:
 	rm -f *.o interbench interbench.read interbench.write interbench.loops_per_ms *~
+
