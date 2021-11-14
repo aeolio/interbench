@@ -48,8 +48,8 @@
 #include <sys/statvfs.h>
 #include "interbench.h"
 
-#define TIMESTAMP_LENGTH	20
-#define MAX_UNAME_LENGTH	100
+#define TIMESTAMP_LENGTH	32
+#define MAX_UNAME_LENGTH	128
 #define MAX_LOG_LENGTH		((MAX_UNAME_LENGTH) + 4)
 #define MIN_BLK_SIZE		512
 #define DEFAULT_RESERVE		64

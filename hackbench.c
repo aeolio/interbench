@@ -9,12 +9,17 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/time.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include "interbench.h"
 
 #define DATASIZE 100
 #define LOOPS	100
 #define NUM_FDS	20
+
+/* attribute fallthrough was introduced with GCC 7 */
+#if ! defined(__GNUC__) || __GNUC__ < 7
+#define __attribute__(x) /* NOTHING */
+#endif
 
 static inline void barf(const char *msg)
 {
@@ -30,7 +35,7 @@ static void fdpair(int fds[2])
 /* Block until we're ready to go */
 static void ready(int ready_out, int wakefd)
 {
-	char dummy;
+	char dummy = 0x02;
 	struct pollfd pollfd = { .fd = wakefd, .events = POLLIN };
 
 	/* Tell them we're ready. */
@@ -107,7 +112,9 @@ static unsigned int group(int receivers, int ready_out, int wakefd)
 
 		/* Fork the receiver. */
 		switch (fork()) {
-		case -1: barf("fork()");
+		case -1: 
+			barf("fork()"); 
+			__attribute__ ((fallthrough));
 		case 0:
 			close(fds[1]);
 			receiver(NUM_FDS*LOOPS, fds[0], ready_out, wakefd);
@@ -121,7 +128,9 @@ static unsigned int group(int receivers, int ready_out, int wakefd)
 	/* Now we have all the fds, fork the senders */
 	for (i = 0; i < NUM_FDS; i++) {
 		switch (fork()) {
-		case -1: barf("fork()");
+		case -1:
+			barf("fork()");
+			__attribute__ ((fallthrough));
 		case 0:
 			sender(out_fds, ready_out, wakefd);
 			exit(0);
@@ -141,7 +150,7 @@ void *hackbench_thread(void *t)
 {
 	unsigned int i, *num_groups, total_children;
 	int readyfds[2], wakefds[2];
-	char dummy;
+	char dummy = 0x02;
 
 	num_groups = t;
 
