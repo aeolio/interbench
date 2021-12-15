@@ -168,8 +168,9 @@ void terminal_fileopen_error(FILE *fp, char *name)
 #define KTIME_TO_NS(v)	((v) * 100)
 #define KTIME_TO_US(v)	((v) / 10)
 #define KTIME_TO_MS(v)	((v) / 10000)
-#define PERIODIC_INTERVAL(v)	(SEC_TO_KTIME(1) / (v))  
-#define DECASECOND_DEADLINES(v)	(SEC_TO_KTIME(1) / (v) * 10)  
+/* macros to convert frequency to time and time to frequency (10 second timeframe) */
+#define PERIODIC_INTERVAL(v)	(SEC_TO_KTIME(1) / (v))
+#define DECASECOND_DEADLINES(v)	(SEC_TO_KTIME(1) / (v) * 10)
 
 unsigned long long get_nsecs(struct timespec *myts)
 {
