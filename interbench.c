@@ -1150,7 +1150,7 @@ void show_latencies(struct thread *th)
 		long double variance = ((long double) tbj->sum_latency_squared - 
 			((long double) tbj->total_latency * (long double) tbj->total_latency) / 
 			(long double) tbj->nr_samples) / (long double) (tbj->nr_samples - 1);
-		sd = sqrtl(variance);
+		sd = sqrt(variance);
 	} else {
 		average_latency = tbj->total_latency;
 		sd = 0.0;

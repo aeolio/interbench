@@ -13,6 +13,9 @@ extern ssize_t Read(int fd, void *buf, size_t count);
 
 #define __maybe_unused          __attribute__((unused))
 
+/* C11 feature */
+#define sqrt(x) _Generic((x), double: sqrt, long double: sqrtl)(x)
+
 struct sems {
 	sem_t ready;
 	sem_t start;
