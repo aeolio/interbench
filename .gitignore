@@ -1,0 +1,5 @@
+*.log
+*.o
+interbench
+interbench.loops_per_ms
+
