@@ -270,8 +270,6 @@ void sync_flush(void)
 	if ((fflush(NULL)) == EOF)
 		terminal_error("fflush");
 	sync();
-	sync();
-	sync();
 }
 
 unsigned long compute_allocable_mem(void)
