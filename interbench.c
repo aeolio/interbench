@@ -1198,9 +1198,12 @@ void show_latencies(struct thread *th)
 	log_output("%-8.5g", (double) sd);
 	log_output("%4d", k);
 	log_output("%5lu\t", max_latency);
-	log_output("\t%4.3g", samples_met);
-	if (!th->nodeadlines)
-		log_output("\t%9.3g", deadlines_met);
+	/* print only missed targets */ 
+	if (samples_met < 100 || deadlines_met < 100) {
+		log_output("\t%4.3g", samples_met);
+		if (!th->nodeadlines)
+			log_output("\t%9.3g", deadlines_met);
+	}
 	log_output("\n");
 	sync_flush();
 }
