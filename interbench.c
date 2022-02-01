@@ -56,7 +56,8 @@
 #define MB			(1024 * 1024)	/* 2^20 bytes */
 #define KB			1024
 #define MAX_MEM_IN_MB		(1024 * 64)	/* 64 GB */
-#define HISTOGRAM_SIZE		1000 /* we do not care about latencies exceeding 100 us */
+#define TIME_RESOLUTION		10
+#define HISTOGRAM_SIZE		(100 * TIME_RESOLUTION) /* we do not care about latencies exceeding 100 us */
 
 struct user_data {
 	unsigned long loops_per_ms;
@@ -162,12 +163,12 @@ void terminal_fileopen_error(FILE *fp, char *name)
 #endif
 
 /* macros for time interval calculation */
-#define SEC_TO_KTIME(v)	((v) * 10000000)
-#define MS_TO_KTIME(v)	((v) * 10000)
-#define NS_TO_KTIME(v)	((v) / 100)
-#define KTIME_TO_NS(v)	((v) * 100)
-#define KTIME_TO_US(v)	((v) / 10)
-#define KTIME_TO_MS(v)	((v) / 10000)
+#define SEC_TO_KTIME(v)	((unsigned long long) (v) * TIME_RESOLUTION * 1000000)
+#define MS_TO_KTIME(v)	((unsigned long long) (v) * TIME_RESOLUTION * 1000)
+#define NS_TO_KTIME(v)	((unsigned long long) (v) * TIME_RESOLUTION / 1000)
+#define KTIME_TO_NS(v)	((unsigned long long) (v) / TIME_RESOLUTION * 1000)
+#define KTIME_TO_US(v)	((unsigned long long) (v) / TIME_RESOLUTION)
+#define KTIME_TO_MS(v)	((unsigned long long) (v) / TIME_RESOLUTION / 1000)
 /*	macros to convert frequency to time and 
 	time to number of samples per 10 second frame */
 #define PERIODIC_INTERVAL(f)	(SEC_TO_KTIME(1) / (f))
@@ -303,22 +304,24 @@ void burn_loops(unsigned long loops)
 /* Use this many usecs of cpu time */
 void burn_usecs(unsigned long usecs)
 {
-	unsigned long ms_loops;
+	unsigned long long ms_loops;
 
-	ms_loops = ud.loops_per_ms * usecs / MS_TO_KTIME(1);
-	burn_loops(ms_loops);
+	ms_loops = (unsigned long long) ud.loops_per_ms * 
+		(unsigned long long) usecs / MS_TO_KTIME(1);
+	burn_loops((unsigned long) ms_loops);
 }
 
 void microsleep(unsigned long long usecs)
 {
 	struct timespec req, rem;
 
-	rem.tv_sec = rem.tv_nsec = 0;
-
 	req.tv_sec = usecs / SEC_TO_KTIME(1);
 	usecs -= SEC_TO_KTIME(req.tv_sec);
 	req.tv_nsec = KTIME_TO_NS(usecs);
+
 continue_sleep:
+	rem.tv_sec = rem.tv_nsec = 0;
+
 	if ((nanosleep(&req, &rem)) == -1) {
 		if (errno == EINTR) {
 			if (rem.tv_sec || rem.tv_nsec) {
@@ -1876,7 +1879,9 @@ loops_known:
 			log_output("nice %d ", ud.load_nice);
 		log_output("---\n");
 
-		char *str_time = ud.do_rt ? "100" : "us";
+		char timebase[TIMESTAMP_LENGTH];
+		snprintf(timebase, TIMESTAMP_LENGTH-1, "%dn", KTIME_TO_US(1000));
+		char *str_time = ud.do_rt ? timebase : "us";
 
 		log_output("Load");
 		log_output("\tLatency +/- SD ");
