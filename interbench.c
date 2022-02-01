@@ -507,14 +507,7 @@ out_nosleep:
 
 void initialise_thread_data(struct data_table *tb)
 {
-	tb->max_latency =
-		tb->total_latency =
-		tb->sum_latency_squared =
-		tb->deadlines_met =
-		tb->missed_deadlines =
-		tb->missed_burns =
-		tb->nr_samples = 0;
-
+	memset(tb, 0, sizeof(struct data_table));
 	memset(latency_histogram, 0, sizeof(latency_histogram));
 }
 
@@ -1136,7 +1129,7 @@ void show_latencies(struct thread *th)
 {
 	struct data_table *tbj;
 	// struct tk_thread *tk;
-	long double sd;
+	double sd;
 	unsigned long max_latency;
 	double average_latency, deadlines_met, samples_met;
 
@@ -1145,12 +1138,12 @@ void show_latencies(struct thread *th)
 
 	if (tbj->nr_samples > 1) {
 		average_latency = (double) tbj->total_latency / (double) tbj->nr_samples;
-		long double variance = ((long double) tbj->sum_latency_squared - 
-			((long double) tbj->total_latency * (long double) tbj->total_latency) / 
-			(long double) tbj->nr_samples) / (long double) (tbj->nr_samples - 1);
+		// see https://datagenetics.com/blog/november22017/index.html
+		double variance = (double) tbj->sum_latency_squared / 
+			(double) tbj->nr_samples - average_latency * average_latency;
 		sd = sqrt(variance);
 	} else {
-		average_latency = tbj->total_latency;
+		average_latency = (double) tbj->total_latency;
 		sd = 0.0;
 	}
 
@@ -1184,7 +1177,7 @@ void show_latencies(struct thread *th)
 	pl->average_latency[i] = average_latency;
 	if( max_latency > pl->max_latency)
 		pl->max_latency = max_latency;
-	pl->variance[i] = (double) (sd * sd);
+	pl->variance[i] = sd * sd;
 	pl->samples += 1;
 
 	/*
@@ -1193,7 +1186,7 @@ void show_latencies(struct thread *th)
 	 * time tests are below noise, so round off to integers.
 	 */
 	log_output("%6.1f +/- ", average_latency);
-	log_output("%-8.5g", (double) sd);
+	log_output("%-8.5g", sd);
 	log_output("%4d", k);
 	log_output("%5lu\t", max_latency);
 	/* print only missed targets */ 
