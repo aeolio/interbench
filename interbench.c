@@ -168,9 +168,10 @@ void terminal_fileopen_error(FILE *fp, char *name)
 #define KTIME_TO_NS(v)	((v) * 100)
 #define KTIME_TO_US(v)	((v) / 10)
 #define KTIME_TO_MS(v)	((v) / 10000)
-/* macros to convert frequency to time and time to frequency (10 second timeframe) */
-#define PERIODIC_INTERVAL(v)	(SEC_TO_KTIME(1) / (v))
-#define DECASECOND_DEADLINES(v)	(SEC_TO_KTIME(1) / (v) * 10)
+/*	macros to convert frequency to time and 
+	time to number of samples per 10 second frame */
+#define PERIODIC_INTERVAL(f)	(SEC_TO_KTIME(1) / (f))
+#define DECASECOND_DEADLINES(t)	(SEC_TO_KTIME(10) / (t))
 
 unsigned long long get_nsecs(struct timespec *myts)
 {
@@ -437,7 +438,7 @@ unsigned long periodic_schedule(struct thread *th, unsigned long run_usecs,
 
 	current_time = get_usecs(&myts);
 	if (current_time > deadline + tk->slept_interval)
-		latency = current_time - deadline- tk->slept_interval;
+		latency = current_time - deadline - tk->slept_interval;
 
 	/* calculate the latency for missed frames */
 	missed_latency = 0;
@@ -1030,9 +1031,9 @@ void *emulation_thread(void *t)
 void calibrate_loop(int affinity)
 {
 	unsigned loop_counter, redo_counter;
-	unsigned long long start_time, loops_per_msec, run_time = 0;
-	unsigned long long loops;
-	unsigned duration;
+	unsigned long long start_time, run_time;
+	unsigned long loops, loops_per_msec;
+	unsigned long ns_per_msec;
 	float accuracy;
 	float alpha = 0.3; /* moving average */
 	struct timespec myts;
@@ -1054,26 +1055,30 @@ void calibrate_loop(int affinity)
 		}
 	}
 
-	loops_per_msec = 1000000;
 	accuracy = 0.01;
-	duration = 1000000; /* one second */
+	loops_per_msec = 500000; /* usually between 0.16 and 1.5 x 10^6 */
+	ns_per_msec = 1000000; /* ms to ns */
 	loop_counter = 0;
 	redo_counter = 0;
+
 	start_time = get_usecs(&myts);
-	/* Run for at least one second for cpu frequency to hit maximum */
+	/* Run for 100 periods for cpu frequency to hit maximum */
 	do {
 		burn_loops(loops_per_msec);
-	} while (get_usecs(&myts) - start_time < duration);
+	} while (get_usecs(&myts) - start_time < MS_TO_KTIME(100));
 
 redo:
 
+	run_time = 0;
+
 	/* Calibrate to within initial 1% accuracy */
-	while (fabs((float) run_time - (float) duration) > (float) duration * accuracy) {
+	while (fabs((float) run_time - (float) ns_per_msec) > 
+		(float) ns_per_msec * accuracy) {
 		loops = loops_per_msec;
 		start_time = get_nsecs(&myts);
 		burn_loops(loops);
 		run_time = get_nsecs(&myts) - start_time;
-		loops = loops * duration / run_time;
+		loops = loops * ns_per_msec / run_time;
 		loops_per_msec = loops_per_msec * (1-alpha) + loops * alpha;
 		loop_counter += 1;
 		if (loop_counter > 1000 || redo_counter > 50) {
@@ -1083,20 +1088,21 @@ redo:
 	}
 
 	/* Rechecking after a pause increases reproducibility */
-	microsleep(duration/2);
+	microsleep(MS_TO_KTIME(100));
 	loops = loops_per_msec;
 	start_time = get_nsecs(&myts);
 	burn_loops(loops);
 	run_time = get_nsecs(&myts) - start_time;
 
 	/* Tolerate 5% error on checking */
-	if (fabs((float) run_time - (float) duration) > (float) duration * accuracy * 5.0) {
+	if (fabs((float) run_time - (float) ns_per_msec) > 
+		(float) ns_per_msec * accuracy * 5.0) {
 		++redo_counter;
-		microsleep(duration/2); /* also here a pause increases reliability */
+		microsleep(MS_TO_KTIME(100)); /* also here a pause increases reliability */
 		goto redo;
 	}
 
-	accuracy = fabs((float) run_time - (float) duration) / (float) duration;
+	accuracy = fabs((float) run_time - (float) ns_per_msec) / (float) ns_per_msec;
 	fprintf(stderr,"Calibrated with %u loops %u repetitions %0.4f accuracy\n", 
 		loop_counter, redo_counter, accuracy);
 	ud.loops_per_ms = loops_per_msec;
