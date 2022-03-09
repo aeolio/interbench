@@ -7,7 +7,7 @@ objects = interbench.o hackbench.o
 sources = interbench.c interbench.h hackbench.c Makefile
 
 $(target): $(objects)
-	$(CC) $(LDFLAGS) $(objects) -o $(target)
+	$(CC) $(objects) $(LDFLAGS) -o $(target)
 
 $(objects): $(sources)
 
