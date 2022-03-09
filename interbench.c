@@ -1081,7 +1081,7 @@ redo:
 		start_time = get_nsecs(&myts);
 		burn_loops(loops);
 		run_time = get_nsecs(&myts) - start_time;
-		loops = loops * ns_per_msec / run_time;
+		loops = (unsigned long long) loops * ns_per_msec / run_time;
 		loops_per_msec = loops_per_msec * (1-alpha) + loops * alpha;
 		loop_counter += 1;
 		if (loop_counter > 1000 || redo_counter > 50) {
@@ -1880,7 +1880,7 @@ loops_known:
 		log_output("---\n");
 
 		char timebase[TIMESTAMP_LENGTH];
-		snprintf(timebase, TIMESTAMP_LENGTH-1, "%dn", KTIME_TO_US(1000));
+		snprintf(timebase, TIMESTAMP_LENGTH-1, "%dn", (int) KTIME_TO_US(1000));
 		char *str_time = ud.do_rt ? timebase : "us";
 
 		log_output("Load");
