@@ -240,3 +240,24 @@ code, Rusty Russell for hackbench code and Julien Valroff for manpage.
 
 Sat Oct 31 15:17:12 2009
 Con Kolivas < kernel at kolivas dot org >
+
+
+	Changes
+
+Multiple changes have been added to make this tool more useful to compare the 
+real-time performance of different embedded systems.   
+
+	Enable cross-compilation
+	Support building with musl and uClibc
+	Add (disk, memory) limitations for resource constrained systems
+	Adapt calibration loop to better support frequency scaling processors
+	Preserve thread affinity and priority after calibration and during child 
+	process start
+	Fix a bug in latency calculation
+	Add median and cumulative latency
+	Make time resolution configurable (via source code only)
+	Print targets /deadlines only when missed
+	Various fixes for newer compiler versions
+
+Interbench now needs a compiler with C11 support. The default time resolution 
+in real-time mode is 100 ns. 
