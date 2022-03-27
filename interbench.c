@@ -56,8 +56,16 @@
 #define MB			(1024 * 1024)	/* 2^20 bytes */
 #define KB			1024
 #define MAX_MEM_IN_MB		(1024 * 64)	/* 64 GB */
+/*
+	TIME_RESOLUTION is actually a divisor.
+	The resulting time base is 1 us / TIME_RESOLUTION.
+*/
 #define TIME_RESOLUTION		10
-#define HISTOGRAM_SIZE		(100 * TIME_RESOLUTION) /* we do not care about latencies exceeding 100 us */
+/*
+	The histogram for calculation of median latencies is limited to 100 us.
+	Hardware with > 100 us latency values is not useful for real-time systems.
+*/
+#define HISTOGRAM_SIZE		(100 * TIME_RESOLUTION)
 
 struct user_data {
 	unsigned long loops_per_ms;
