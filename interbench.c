@@ -181,6 +181,8 @@ void terminal_fileopen_error(FILE *fp, char *name)
 	time to number of samples per 10 second frame */
 #define PERIODIC_INTERVAL(f)	(SEC_TO_KTIME(1) / (f))
 #define DECASECOND_DEADLINES(t)	(SEC_TO_KTIME(10) / (t))
+/* microsecond conversion with data type retention, used in show_latencies() */
+#define KTIME_TO_US_T(t, v)	((t) (v) / TIME_RESOLUTION)
 
 unsigned long long get_nsecs(struct timespec *myts)
 {
@@ -1176,9 +1178,9 @@ void show_latencies(struct thread *th)
 	max_latency = tbj->max_latency;
 	/* When benchmarking rt the data is represented raw */
 	if (!ud.do_rt) {
-		average_latency = KTIME_TO_US(average_latency);
-		sd = KTIME_TO_US(sd);
-		max_latency = KTIME_TO_US(max_latency);
+		average_latency = KTIME_TO_US_T(double, average_latency);
+		sd = KTIME_TO_US_T(double, sd);
+		max_latency = KTIME_TO_US_T(unsigned long long, max_latency);
 	}
 	if (tbj->deadlines_met == 0)
 		deadlines_met = 0;
@@ -1188,6 +1190,9 @@ void show_latencies(struct thread *th)
 
 	/* calculate median value */
 	int k = get_median_latency(tbj->nr_samples);
+	if (!ud.do_rt)
+		/* round up */
+		k = KTIME_TO_US_T(int, k);
 
 	/* record cumulative latency values */
 	int i = pl->samples;	
