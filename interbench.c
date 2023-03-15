@@ -590,26 +590,25 @@ void emulate_video(struct thread *th)
  * We emulate X by running for a variable percentage of cpu from 0-100% 
  * in 100 ms chunks.
  */
+#define X_INTERVAL	PERIODIC_INTERVAL(10)
 void emulate_x(struct thread *th)
 {
 	unsigned long long deadline;
 	sem_t *s = &th->sem.stop;
 	struct timespec myts;
 
-	th->decasecond_deadlines = 100;
+	th->decasecond_deadlines = DECASECOND_DEADLINES(X_INTERVAL);
 	deadline = get_usecs(&myts);
 
+	srand(time(0));
 	while (1) {
-		int i, j;
-		for (i = 0 ; i <= 100 ; i++) {
-			j = 100 - i;
-			deadline = periodic_schedule(th, MS_TO_KTIME(i), MS_TO_KTIME(j),
-				deadline);
-			deadline += MS_TO_KTIME(i);
-			if (!trywait_sem(s))
-				return;
+		unsigned long long load = (long long) rand() * 100ULL / RAND_MAX;
+		unsigned long run = (unsigned long) load * X_INTERVAL / 100;
+		deadline = periodic_schedule(th, run, X_INTERVAL, deadline);
+		deadline += X_INTERVAL;
+		if (!trywait_sem(s))
+			return;
 		}
-	}
 }
 
 /* 
