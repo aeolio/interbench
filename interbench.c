@@ -53,9 +53,11 @@
 #define MAX_LOG_LENGTH		((MAX_UNAME_LENGTH) + 4)
 #define MIN_BLK_SIZE		512
 #define DEFAULT_RESERVE		64
-#define MB			(1024 * 1024)	/* 2^20 bytes */
-#define KB			1024
-#define MAX_MEM_IN_MB		(1024 * 64)	/* 64 GB */
+#define KiB			1024
+#define MiB			(1024 * 1024)	/* 2^20 bytes */
+#define MAX_MEM_IN_MiB		(1024 * 64)	/* 64 GB */
+#define BLOCKS_TO_KIBIBYTES(nb,bs)	((nb) * (bs) / KiB) 
+#define KIBIBYTES_TO_BLOCKS(kb,bs)	((kb) * KiB / (bs)) 
 /*
 	TIME_RESOLUTION is actually a divisor.
 	The resulting time base is 1 us / TIME_RESOLUTION.
@@ -704,7 +706,7 @@ void emulate_write(struct thread *th)
 		terminal_fileopen_error(fp, "stat");
 	if (statbuf.st_blksize < MIN_BLK_SIZE)
 		statbuf.st_blksize = MIN_BLK_SIZE;
-	mem = ud.filesize / (statbuf.st_blksize / 1024);	/* kilobytes to blocks */
+	mem = KIBIBYTES_TO_BLOCKS(ud.filesize, statbuf.st_blksize);
 	if (!(buf = calloc(1, statbuf.st_blksize)))
 		terminal_fileopen_error(fp, "calloc");
 	if (fclose(fp) == -1)
@@ -862,10 +864,10 @@ void emulate_compile(struct thread *th)
 
 int *grab_and_touch (char *block[], int i)
 {
-	block[i] = (char *) malloc(MB);
+	block[i] = (char *) malloc(MiB);
 	if (!block[i])
 		return NULL;
-	return (memset(block[i], 1, MB));
+	return (memset(block[i], 1, MiB));
 }
 
 /* We emulate a memory load by allocating and torturing 110% of available ram */
@@ -873,7 +875,7 @@ void emulate_memload(struct thread *th)
 {
 	sem_t *s = &th->sem.stop;
 	unsigned long touchable_mem, i;
-	char *mem_block[MAX_MEM_IN_MB];
+	char *mem_block[MAX_MEM_IN_MiB];
 	void *success;
 
 	touchable_mem = compute_allocable_mem();
@@ -890,7 +892,7 @@ void emulate_memload(struct thread *th)
 			goto out_freemem;
 		for (i = 0;  i < touchable_mem; i++) {
 			memcpy(mem_block[i], mem_block[(i + touchable_mem / 2) %
-				touchable_mem], MB);
+				touchable_mem], MiB);
 			if (!trywait_sem(s))
 				goto out_freemem;
 		}
@@ -1256,7 +1258,7 @@ write:
 	bsize = statbuf.st_blksize;
 	if (!(buf = calloc(1, bsize)))
 		terminal_fileopen_error(fp, "calloc");
-	mem = ud.filesize / (bsize / 1024);	/* kilobytes to blocks */
+	mem = KIBIBYTES_TO_BLOCKS(ud.filesize, bsize);
 
 	for (i = 0 ; i < mem; i++) {
 		if (fwrite(buf, bsize, 1, fp) != 1)
@@ -1319,11 +1321,11 @@ void get_filesize( char *directory )
 		/* if block size is missing, use standard block size */
 		if(fiData.f_bsize == 0)
 			fiData.f_bsize = MIN_BLK_SIZE;
-		ud.filesize = fiData.f_bavail * fiData.f_bsize / KB;	/* blocks to kilobytes */
+		ud.filesize = BLOCKS_TO_KIBIBYTES(fiData.f_bavail, fiData.f_bsize);
 		ud.filesize = ud.filesize * 49L /100L;	/* two files must co-exist, leave 2% margin */
 		if( ud.ram > 0 && ud.filesize > ud.ram )
 			ud.filesize = ud.ram;
-		fprintf(stderr, "\nCalculated file size %lu KB\n", ud.filesize);
+		fprintf(stderr, "\nCalculated file size %lu KiB\n", ud.filesize);
 	} else {
 		fprintf(stderr, "\nFailed to stat %s:\n", path);
 	}
