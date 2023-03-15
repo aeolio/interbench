@@ -731,6 +731,8 @@ void emulate_write(struct thread *th)
 	}
 
 out:
+	if (buf)
+		free(buf);
 	if (fclose(fp) == -1)
 		terminal_error("fclose");
 	if (remove(name) == -1)
@@ -753,6 +755,8 @@ void emulate_read(struct thread *th)
 	if (stat(name, &statbuf) == -1) 
 		terminal_error("stat");
 	bsize = statbuf.st_blksize;
+	if (bsize < MIN_BLK_SIZE)
+		bsize = MIN_BLK_SIZE;
 	if (!(buf = malloc(bsize)))
 		terminal_error("malloc");
 
@@ -766,10 +770,16 @@ void emulate_read(struct thread *th)
 		 */
 		while ((rd = Read(tmp , buf, bsize)) > 0);
 		if(!trywait_sem(s))
-			return;
+			goto out;
 		if (lseek(tmp, (off_t)0, SEEK_SET) == -1)
 			terminal_error("lseek");
 	}
+
+out:
+	if (buf)
+		free(buf);
+	if (close(tmp) == -1)
+		terminal_error("close");
 }
 
 /* having a ring consisting of only one element makes no sense */ 
