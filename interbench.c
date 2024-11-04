@@ -1307,8 +1307,11 @@ void get_ram(void)
 
 	if( !ud.ram || !ud.swap ) {
 		unsigned long i;
-		fprintf(stderr, "\nCould not get memory or swap size. ");
-		fprintf(stderr, "Will not perform mem_load\n");
+		if( !ud.ram )
+			fprintf(stderr, "\nCould not read memory size. ");
+		else if( !ud.swap )
+			fprintf(stderr, "\nSwap is not enabled. ");
+		fprintf(stderr, "Skip mem_load\n");
 		for (i = 0 ; i < THREADS ; i++) {
 			if (!strcmp(threadlist[i].label, "Memload")) {
 				threadlist[i].load = 0;
