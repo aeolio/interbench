@@ -1323,7 +1323,7 @@ void get_filesize( char *directory )
 	struct statvfs fiData;
 	char path[256];
 
-	ud.filesize = 2^18;	/* limit filesize to 1GB */
+	ud.filesize = 1<<18;	/* limit filesize to 1 GiB */
 	strncpy(path, directory, sizeof(path)-1);
 	path[sizeof(path)-1] = '\0';
 	if( (statvfs(path,&fiData)) == 0 ) {
