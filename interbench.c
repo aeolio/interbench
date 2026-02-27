@@ -161,7 +161,7 @@ void terminal_error(const char *name)
 	exit (1);
 }
 
-void terminal_fileopen_error(FILE *fp, char *name)
+void terminal_fileopen_error(FILE *fp, const char *name)
 {
 	if (fclose(fp) == -1)
 		terminal_error("fclose");
@@ -528,9 +528,9 @@ void initialise_thread_data(struct data_table *tb)
 }
 
 void create_pthread(pthread_t  * thread, pthread_attr_t * attr,
-	void * (*start_routine)(void *), void *arg)
+	void * (*start_routine)(const void *), void *arg)
 {
-	if (pthread_create(thread, attr, start_routine, arg))
+	if (pthread_create(thread, attr, (void * (*)(void *)) start_routine, arg))
 		terminal_error("pthread_create");
 }
 
@@ -621,7 +621,6 @@ void emulate_x(struct thread *th)
 #define GAME_RUN	(GAME_INTERVAL)
 void emulate_game(struct thread *th)
 {
-	unsigned long long deadline, current_time, latency;
 	sem_t *s = &th->sem.stop;
 	struct timespec myts;
 	struct data_table *tb;
@@ -630,16 +629,16 @@ void emulate_game(struct thread *th)
 	th->decasecond_deadlines = DECASECOND_DEADLINES(GAME_INTERVAL);
 
 	while (1) {
-		deadline = get_usecs(&myts) + GAME_INTERVAL;
+		unsigned long long latency = 0;
+		unsigned long long deadline = get_usecs(&myts) + GAME_INTERVAL;
 		burn_usecs(GAME_RUN);
-		current_time = get_usecs(&myts);
+		unsigned long long current_time = get_usecs(&myts);
 		/* use usecs instead of simple count for game burn statistics */
 		tb->achieved_burns += GAME_RUN;
 		if (current_time > deadline) {
 			latency = current_time - deadline;
 			tb->missed_burns += latency;
-		} else
-			latency = 0;
+		}
 		if (latency > tb->max_latency)
 			tb->max_latency = latency;
 		tb->total_latency += latency;
@@ -651,7 +650,7 @@ void emulate_game(struct thread *th)
 	}
 }
 
-void *burn_thread(void *t)
+void *burn_thread(const void *t)
 {
 	struct thread *th;
 	sem_t *s;
@@ -787,7 +786,7 @@ out:
 
 struct thread *ringthreads;
 
-void *ring_thread(void *t)
+void *ring_thread(const void *t)
 {
 	unsigned int post_to;
 	struct thread *th;
@@ -821,7 +820,7 @@ void emulate_ring(struct thread *th)
 	sem_t *s = &th->sem.stop;
 	unsigned int i;
 
-	ringthreads = calloc(sizeof(struct thread), RINGTHREADS);
+	ringthreads = calloc(RINGTHREADS, sizeof(struct thread));
 	for (i = 0 ; i < RINGTHREADS ; i++) {
 		init_all_sems(&ringthreads[i].sem);
 		create_pthread(&ringthreads[i].pthread, NULL, 
@@ -885,13 +884,12 @@ void emulate_memload(struct thread *th)
 	sem_t *s = &th->sem.stop;
 	unsigned long touchable_mem, i;
 	char *mem_block[MAX_MEM_IN_MiB];
-	void *success;
 
 	touchable_mem = compute_allocable_mem();
 	/* loop until we're killed, frobbing memory in various perverted ways */
 	while (1) {
 		for (i = 0;  i < touchable_mem; i++) {
-			success = grab_and_touch(mem_block, i);
+			const void *success = grab_and_touch(mem_block, i);
 			if (!success) {
 				touchable_mem = i-1;
 				break;
@@ -954,7 +952,7 @@ void emulate_custom(struct thread *th)
 	}
 }
 
-void *timekeeping_thread(void *t)
+void *timekeeping_thread(const void *t)
 {
 	struct thread *th;
 	struct tk_thread *tk;
@@ -1009,7 +1007,7 @@ out:
  * in nanosleep. This allows wakeup latency of the tested thread to be
  * accurate and reflect true scheduling delays.
  */
-void *emulation_thread(void *t)
+void *emulation_thread(const void *t)
 {
 	struct thread *th;
 	struct tk_thread *tk;
@@ -1155,15 +1153,14 @@ void log_output(const char *format, ...)
 }
 
 /* Calculate statistics and output them */
-void show_latencies(struct thread *th)
+void show_latencies(const struct thread *th)
 {
-	struct data_table *tbj;
 	// struct tk_thread *tk;
 	double sd;
 	unsigned long max_latency;
 	double average_latency, deadlines_met, samples_met;
 
-	tbj = th->dt;
+	const struct data_table *tbj = th->dt;
 	// tk = &th->tkthread;
 
 	if (tbj->nr_samples > 1) {
@@ -1237,7 +1234,7 @@ void create_read_file(void)
 	unsigned int i;
 	FILE *fp;
 	char *name = "interbench.read";
-	void *buf = NULL;
+	const void *buf = NULL;
 	struct stat statbuf;
 	unsigned long mem, bsize;
 	int tmp;
@@ -1280,7 +1277,7 @@ write:
 
 void delete_read_file(void)
 {
-	char *name = "interbench.read";
+	const char *name = "interbench.read";
 	if (remove(name) == -1)
 		terminal_error("remove");
 }
@@ -1321,7 +1318,7 @@ void get_ram(void)
 	}
 }
 
-void get_filesize( char *directory )
+void get_filesize( const char *directory )
 {
 	struct statvfs fiData;
 	char path[256];
@@ -1345,7 +1342,7 @@ void get_filesize( char *directory )
 
 void get_logfilename(void)
 {
-	struct tm *mytm;
+	const struct tm *mytm;
 	struct utsname buf;
 	time_t t;
 	int year, month, day, hours, minutes;
@@ -1609,12 +1606,14 @@ void deadchild(int crap)
 	pid_t retval;
 	int status;
 
-	crap = 0;
+	(void) crap; /* parameter is unused*/
 
 	if ((retval = waitpid(-1, &status, WNOHANG)) == -1) {
 		if (errno == ECHILD)
 			return;
-		terminal_error("waitpid");
+		char msg[20];
+		sprintf(msg, "waitpid (%ul)", retval);
+		terminal_error(msg);
 	}
 	if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
 		return;
@@ -1659,7 +1658,7 @@ int main(int argc, char **argv)
 	 * This file stores the loops_per_ms to be reused in a filename that
 	 * can't be confused
 	 */
-	char *fname = "interbench.loops_per_ms";
+	const char *fname = "interbench.loops_per_ms";
 	char *comment = NULL;
 #ifdef DEBUG
 	feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
@@ -1885,8 +1884,8 @@ loops_known:
 		threadlist[i].threadno = i;
 
 	for (i = 0 ; i < THREADS ; i++) {
-		struct thread *thi = &threadlist[i];
-		int *benchme;
+		const struct thread *thi = &threadlist[i];
+		const int *benchme;
 
 		if (ud.do_rt)
 			benchme = &threadlist[i].rtbench;

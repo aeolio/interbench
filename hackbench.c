@@ -102,7 +102,7 @@ static void receiver(unsigned int num_packets,
 static unsigned int group(int receivers, int ready_out, int wakefd)
 {
 	unsigned int i;
-	int *out_fds = calloc(sizeof(int *), receivers + 1);
+	int *out_fds = calloc(receivers + 1, sizeof(int *));
 
 	for (i = 0; i < NUM_FDS; i++) {
 		int fds[2];
@@ -146,24 +146,23 @@ static unsigned int group(int receivers, int ready_out, int wakefd)
 	return NUM_FDS * 2;
 }
 
-void *hackbench_thread(void *t)
+void *hackbench_thread(const void *t)
 {
-	unsigned int i, *num_groups, total_children;
 	int readyfds[2], wakefds[2];
 	char dummy = 0x02;
 
-	num_groups = t;
+	const unsigned int *num_groups = t;
 
 	fdpair(readyfds);
 	fdpair(wakefds);
 	
 	while (1) {
-		total_children = 0;
-		for (i = 0; i < *num_groups; i++)
+		unsigned int total_children = 0;
+		for (unsigned int i = 0; i < *num_groups; i++)
 			total_children += group(*num_groups, readyfds[1], wakefds[0]);
 	
 		/* Wait for everyone to be ready */
-		for (i = 0; i < total_children; i++)
+		for (unsigned int i = 0; i < total_children; i++)
 			if (Read(readyfds[0], &dummy, 1) != 1)
 				barf("Reading for readyfds");
 	
@@ -172,7 +171,7 @@ void *hackbench_thread(void *t)
 			barf("Writing to start them");
 	
 		/* Reap them all */
-		for (i = 0; i < total_children; i++) {
+		for (unsigned int i = 0; i < total_children; i++) {
 			int status;
 			wait(&status);
 			if (!WIFEXITED(status))

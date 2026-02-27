@@ -2,7 +2,7 @@
 #ifndef INTERBENCH_H
 #define INTERBENCH_H
 
-extern void *hackbench_thread(void *t);
+extern void *hackbench_thread(const void *t);
 extern void terminal_error(const char *name);
 extern void post_sem(sem_t *s);
 extern void wait_sem(sem_t *s);
