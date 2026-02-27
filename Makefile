@@ -15,5 +15,5 @@ $(objects): $(sources)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o interbench interbench.read interbench.write interbench.loops_per_ms *~
+	rm -f *.o interbench interbench.read interbench.write interbench.loops_per_ms *.log *~
 
