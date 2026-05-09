@@ -68,6 +68,7 @@
 	Hardware with > 100 us latency values is not useful for real-time systems.
 */
 #define HISTOGRAM_SIZE		(100 * TIME_RESOLUTION)
+#define READ_FILE_NAME		"interbench.read"
 
 struct user_data {
 	unsigned long loops_per_ms;
@@ -744,7 +745,7 @@ out:
 void emulate_read(struct thread *th)
 {
 	sem_t *s = &th->sem.stop;
-	char *name = "interbench.read";
+	const char *name = READ_FILE_NAME;
 	void *buf = NULL;
 	struct stat statbuf;
 	unsigned long bsize;
@@ -1234,7 +1235,7 @@ void create_read_file(void)
 {
 	unsigned int i;
 	FILE *fp;
-	char *name = "interbench.read";
+	const char *name = READ_FILE_NAME;
 	const void *buf = NULL;
 	struct stat statbuf;
 	unsigned long mem, bsize;
@@ -1282,9 +1283,11 @@ write:
 
 void delete_read_file(void)
 {
-	const char *name = "interbench.read";
-	if (remove(name) == -1)
-		terminal_error("remove");
+	const char *name = READ_FILE_NAME;
+	if( access(name, F_OK) == 0 ) {
+		if (remove(name) == -1)
+			terminal_error("remove");
+	}
 }
 
 void get_ram(void)
