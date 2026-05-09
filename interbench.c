@@ -700,15 +700,17 @@ void emulate_write(struct thread *th)
 	void *buf = NULL;
 	struct stat statbuf;
 	unsigned long mem;
+	unsigned long bsize;
 
 	if (!(fp = fopen(name, "w")))
 		terminal_error("fopen");
 	if (stat(name, &statbuf) == -1)
 		terminal_fileopen_error(fp, "stat");
-	if (statbuf.st_blksize < MIN_BLK_SIZE)
-		statbuf.st_blksize = MIN_BLK_SIZE;
+	bsize = statbuf.st_blksize;
+	if (bsize < MIN_BLK_SIZE)
+		bsize = MIN_BLK_SIZE;
 	mem = KIBIBYTES_TO_BLOCKS(ud.filesize, statbuf.st_blksize);
-	if (!(buf = calloc(1, statbuf.st_blksize)))
+	if (!(buf = calloc(1, bsize)))
 		terminal_fileopen_error(fp, "calloc");
 	if (fclose(fp) == -1)
 		terminal_error("fclose");
@@ -718,12 +720,8 @@ void emulate_write(struct thread *th)
 
 		if (!(fp = fopen(name, "w")))
 			terminal_error("fopen");
-		if (stat(name, &statbuf) == -1)
-			terminal_fileopen_error(fp, "stat");
-		if (statbuf.st_blksize < MIN_BLK_SIZE)
-			statbuf.st_blksize = MIN_BLK_SIZE;
 		for (i = 0 ; i < mem; i++) {
-			if (fwrite(buf, statbuf.st_blksize, 1, fp) != 1)
+			if (fwrite(buf, bsize, 1, fp) != 1)
 				terminal_fileopen_error(fp, "fwrite");
 			if (!trywait_sem(s))
 				goto out;
@@ -1249,9 +1247,9 @@ void create_read_file(void)
 	}
 	if (stat(name, &statbuf) == -1)
 		terminal_error("stat");
-	if (statbuf.st_blksize < MIN_BLK_SIZE)
-		statbuf.st_blksize = MIN_BLK_SIZE;
 	bsize = statbuf.st_blksize;
+	if (bsize < MIN_BLK_SIZE)
+		bsize = MIN_BLK_SIZE;
 	if (statbuf.st_size / 1024 / bsize == ud.filesize / bsize)
 		return;
 	if (remove(name) == -1)
@@ -1262,9 +1260,9 @@ write:
 		terminal_error("fopen");
 	if (stat(name, &statbuf) == -1)
 		terminal_fileopen_error(fp, "stat");
-	if (statbuf.st_blksize < MIN_BLK_SIZE)
-		statbuf.st_blksize = MIN_BLK_SIZE;
 	bsize = statbuf.st_blksize;
+	if (bsize < MIN_BLK_SIZE)
+		bsize = MIN_BLK_SIZE;
 	if (!(buf = calloc(1, bsize)))
 		terminal_fileopen_error(fp, "calloc");
 	mem = KIBIBYTES_TO_BLOCKS(ud.filesize, bsize);
