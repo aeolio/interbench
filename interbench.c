@@ -1240,6 +1240,10 @@ void create_read_file(void)
 	unsigned long mem, bsize;
 	int tmp;
 
+	/* skip this if fiesystem size could not be determined */
+	if (!ud.filesize)
+		return;
+
 	if ((tmp = open(name, O_RDONLY)) == -1) {
 		if (errno != ENOENT)
 			terminal_error("open");
@@ -1317,24 +1321,34 @@ void get_ram(void)
 	}
 }
 
-void get_filesize( const char *directory )
+void get_filesize( void )
 {
 	struct statvfs fiData;
 	char path[256];
 
-	ud.filesize = 1<<18;	/* limit filesize to 1 GiB */
-	strncpy(path, directory, sizeof(path)-1);
-	path[sizeof(path)-1] = '\0';
-	if( (statvfs(path,&fiData)) == 0 ) {
-		/* if block size is missing, use standard block size */
-		if(fiData.f_bsize == 0)
-			fiData.f_bsize = MIN_BLK_SIZE;
-		ud.filesize = BLOCKS_TO_KIBIBYTES(fiData.f_bavail, fiData.f_bsize);
-		ud.filesize = ud.filesize * 49L /100L;	/* two files must co-exist, leave 2% margin */
-		if( ud.ram > 0 && ud.filesize > ud.ram )
-			ud.filesize = ud.ram;
-		fprintf(stderr, "\nCalculated file size %lu KiB\n", ud.filesize);
-	} else {
+	getcwd(path, sizeof(path));
+	if( (statvfs(path, &fiData)) == 0 ) {
+		if(fiData.f_bsize && fiData.f_bavail) {
+			ud.filesize = BLOCKS_TO_KIBIBYTES(fiData.f_bavail, fiData.f_bsize);
+			/* two files must co-exist, leave 2% margin */
+			ud.filesize = ud.filesize * 49L /100L;
+			/* embedded sstem running rootfs inside ramfs */
+			if( ud.ram > 0 && ud.filesize > ud.ram )
+				ud.filesize = ud.ram;
+			fprintf(stderr, "\nCalculated file size %lu KiB\n", ud.filesize);
+			}
+		else {
+			fprintf(stderr, "\nInsufficient file space. Skip read, write_loads\n");
+			for (int i = 0 ; i < THREADS ; i++) {
+				if (!strcmp(threadlist[i].label, "Write") ||
+					!strcmp(threadlist[i].label, "Read") ||
+					!strcmp(threadlist[i].label, "Compile")) {
+					threadlist[i].load = 0;
+					threadlist[i].rtload = 0;
+					}
+				}
+			}
+		} else {
 		fprintf(stderr, "\nFailed to stat %s:\n", path);
 	}
 }
@@ -1858,7 +1872,7 @@ bench:
 
 loops_known:
 	get_ram();
-	get_filesize(".");
+	get_filesize();
 	get_logfilename();
 	create_read_file();
 	init_pipes();
