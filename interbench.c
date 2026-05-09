@@ -1288,18 +1288,16 @@ void delete_read_file(void)
 void get_ram(void)
 {
 	FILE *meminfo;
-        char aux[256] = {};
+	char aux[256] = {};
  
 	if(!(meminfo = fopen("/proc/meminfo", "r")))
-		terminal_error("fopen");
+		terminal_error("fopen /proc/meminfo");
 
 	ud.ram = ud.swap = 0;
 	while( !feof(meminfo) && fgets(aux,sizeof(aux),meminfo) ) {
-		if (sscanf(aux, "MemTotal: %lu kB", &ud.ram) )
-			break;
-	}
-	while( !feof(meminfo) && fgets(aux,sizeof(aux),meminfo) ) {
-		if (sscanf(aux, "SwapTotal: %lu kB", &ud.swap) )
+		sscanf(aux, "MemTotal: %lu kB", &ud.ram);
+		sscanf(aux, "SwapTotal: %lu kB", &ud.swap);
+		if( ud.ram && ud.swap )
 			break;
 	}
 	if (fclose(meminfo) == -1)
