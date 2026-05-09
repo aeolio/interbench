@@ -281,9 +281,12 @@ void set_thread_normal(pthread_t pthread)
 
 void sync_flush(void)
 {
+	sync();
+	/* If stream is a null pointer, all open output streams are flushed,
+	   including the ones manipulated within library packages or otherwise
+	   not directly accessible to the program. */
 	if ((fflush(NULL)) == EOF)
 		terminal_error("fflush");
-	sync();
 }
 
 unsigned long compute_allocable_mem(void)
