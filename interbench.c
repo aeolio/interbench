@@ -1079,8 +1079,12 @@ void calibrate_loop(int affinity)
 		}
 	}
 
-	accuracy = 0.01;
-	loops_per_msec = 500000; /* usually between 0.16 and 1.5 x 10^6 */
+	#define ACCURACY 0.01
+	#define LOOPS 1000U
+	#define REPITITIONS 50U
+
+	accuracy = ACCURACY;
+	loops_per_msec = 1000000; /* usually between 0.10 and 10 x 10^6 */
 	ns_per_msec = 1000000; /* ms to ns */
 	loop_counter = 0;
 	redo_counter = 0;
@@ -1104,8 +1108,7 @@ redo:
 		run_time = get_nsecs(&myts) - start_time;
 		loops = (unsigned long long) loops * ns_per_msec / run_time;
 		loops_per_msec = loops_per_msec * (1-alpha) + loops * alpha;
-		loop_counter += 1;
-		if (loop_counter > 1000 || redo_counter > 50) {
+		if (++loop_counter > LOOPS || redo_counter > REPITITIONS) {
 			fprintf(stderr, "\ncalibrate_loop: accuracy insufficient\n");
 			exit(1);
 		}
@@ -1118,10 +1121,12 @@ redo:
 	burn_loops(loops);
 	run_time = get_nsecs(&myts) - start_time;
 
-	/* Tolerate 5% error on checking */
+	/* Tolerate maximum error on checking */
 	if (fabs((float) run_time - (float) ns_per_msec) > 
-		(float) ns_per_msec * accuracy * 5.0) {
-		++redo_counter;
+		(float) ns_per_msec * ACCURACY * 5.0) {
+		/* allow for noisy systems */
+		if ((++redo_counter % 10) == 0)
+			accuracy += accuracy;
 		microsleep(MS_TO_KTIME(100)); /* also here a pause increases reliability */
 		goto redo;
 	}
