@@ -1340,13 +1340,13 @@ void get_filesize( void )
 			ud.filesize = BLOCKS_TO_KIBIBYTES(fiData.f_bavail, fiData.f_bsize);
 			/* two files must co-exist, leave 2% margin */
 			ud.filesize = ud.filesize * 49L /100L;
-			/* embedded sstem running rootfs inside ramfs */
+			/* allow for embedded system running in-memory rootfs */
 			if( ud.ram > 0 && ud.filesize > ud.ram )
 				ud.filesize = ud.ram;
 			fprintf(stderr, "Calculated file size %lu KiB\n", ud.filesize);
 			}
 		else {
-			fprintf(stderr, "Insufficient file space. Skip read, write_loads\n");
+			fprintf(stderr, "Probably r/o filesstem. Skip read, write_loads\n");
 			for (int i = 0 ; i < THREADS ; i++) {
 				if (!strcmp(threadlist[i].label, "Write") ||
 					!strcmp(threadlist[i].label, "Read") ||
