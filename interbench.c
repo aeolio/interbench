@@ -1311,9 +1311,9 @@ void get_ram(void)
 	if( !ud.ram || !ud.swap ) {
 		unsigned long i;
 		if( !ud.ram )
-			fprintf(stderr, "\nCould not read memory size. ");
+			fprintf(stderr, "Could not read memory size. ");
 		else if( !ud.swap )
-			fprintf(stderr, "\nSwap is not enabled. ");
+			fprintf(stderr, "Swap is not enabled. ");
 		fprintf(stderr, "Skip mem_load\n");
 		for (i = 0 ; i < THREADS ; i++) {
 			if (!strcmp(threadlist[i].label, "Memload")) {
@@ -1338,10 +1338,10 @@ void get_filesize( void )
 			/* embedded sstem running rootfs inside ramfs */
 			if( ud.ram > 0 && ud.filesize > ud.ram )
 				ud.filesize = ud.ram;
-			fprintf(stderr, "\nCalculated file size %lu KiB\n", ud.filesize);
+			fprintf(stderr, "Calculated file size %lu KiB\n", ud.filesize);
 			}
 		else {
-			fprintf(stderr, "\nInsufficient file space. Skip read, write_loads\n");
+			fprintf(stderr, "Insufficient file space. Skip read, write_loads\n");
 			for (int i = 0 ; i < THREADS ; i++) {
 				if (!strcmp(threadlist[i].label, "Write") ||
 					!strcmp(threadlist[i].label, "Read") ||
@@ -1874,6 +1874,8 @@ bench:
 		terminal_error("fclose");
 
 loops_known:
+	fprintf(stderr, "\n"); /* rather than appending it to every fprintf */
+
 	get_ram();
 	get_filesize();
 	get_logfilename();
