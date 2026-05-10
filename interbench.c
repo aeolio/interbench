@@ -69,6 +69,13 @@
 */
 #define HISTOGRAM_SIZE		(100 * TIME_RESOLUTION)
 #define READ_FILE_NAME		"interbench.read"
+/*
+	priority values for different thread classes
+*/
+#define FIFO_BENCHCHILD		50
+#define FIFO_TIMEKEEPING	52
+#define FIFO_CALIBRATION	99
+
 
 struct user_data {
 	unsigned long loops_per_ms;
@@ -256,7 +263,7 @@ int test_fifo(void)
 {
 	struct sched_param sp;
 	memset(&sp, 0, sizeof(sp));
-	sp.sched_priority = 99;
+	sp.sched_priority = FIFO_CALIBRATION;
 	if (sched_setscheduler(0, SCHED_FIFO, &sp) == -1) {
 		if (errno != EPERM)
 			terminal_error("sched_setscheduler");
@@ -972,7 +979,7 @@ void *timekeeping_thread(const void *t)
 	 * accurate accounting remains SCHED_NORMAL;
 	 */
 	if (th->dt != &th->benchmarks[NOT_BENCHING])
-		set_fifo(96);
+		set_fifo(FIFO_TIMEKEEPING);
 	/* These values must be changed at the appropriate places or race */
 	tk->sleep_interval = tk->slept_interval = 0;
 	post_sem(&s->ready);
@@ -1497,7 +1504,7 @@ void run_benchchild(int i, int j)
 	thi->dt = &thi->benchmarks[j];
 	initialise_thread_data(thi->dt);
 	if (ud.do_rt)
-		set_thread_fifo(thi->pthread, 95);
+		set_thread_fifo(thi->pthread, FIFO_BENCHCHILD);
 	
 	/* Tell main we're ready */
 	wakeup_with(b2m[1]);
@@ -1548,7 +1555,7 @@ void bench(int i, int j)
 	 * We want to be higher priority than everything to signal them to
 	 * stop and we lock our memory if we can as well
 	 */
-	set_fifo(99);
+	set_fifo(FIFO_CALIBRATION);
 	set_mlock();
 
 	/* Wakeup the load process */
@@ -1860,7 +1867,7 @@ bench:
 		 * To get as accurate a loop as possible we time it running
 		 * SCHED_FIFO if we can
 		 */
-		set_fifo(99);
+		set_fifo(FIFO_CALIBRATION);
 		calibrate_loop(affinity);
 		set_normal();
 	} else
