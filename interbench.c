@@ -1069,6 +1069,7 @@ void calibrate_loop(int affinity)
 	float alpha = 0.3; /* moving average */
 	struct timespec myts;
 
+	/* if affinity is set, sched_setaffinity has already been called in main() */
 	if (! affinity) {
 		cpu_set_t cpumask;
 
@@ -1831,6 +1832,9 @@ int main(int argc, char **argv)
 				terminal_error("sched_setaffinity");
 			fprintf(stderr, "could not set cpu affinity\n");
 		}
+		/* if limited to one processor, also set the cpu load accordingly */
+		else
+			ud.cpu_load = 1;
 	}
 
 	/* Make benchmark a multiple of 10 seconds for proper range of X loads */
@@ -1900,7 +1904,10 @@ loops_known:
 		fprintf(stderr, "Unable to write to logfile\n");
 		ud.log = 0;
 	}
-	log_output("Load set to %lu processors\n", ud.cpu_load);
+	log_output("Affinity %s, load set to %lu processor core%s\n", 
+		affinity ? "on" : "off",
+		ud.cpu_load, 
+		ud.cpu_load > 1 ? "s" : "");
 	log_output("\n");
 	log_output("Using %lu loops per ms, running every load for %d seconds\n",
 		ud.loops_per_ms, ud.duration);
