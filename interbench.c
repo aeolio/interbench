@@ -88,11 +88,13 @@ struct user_data {
 	unsigned long custom_run;
 	unsigned long custom_interval;
 	unsigned long cpu_load;
+	cpu_set_t cpuset_online;
+	cpu_set_t cpuset_isolated;
+	cpu_set_t cpuset_single;
 	char logfilename[MAX_LOG_LENGTH];
 	int log;
 	char unamer[MAX_UNAME_LENGTH];
 	char datestamp[TIMESTAMP_LENGTH];
-	cpu_set_t cpumask;
 	FILE *logfile;
 } ud = {
 	.duration = 30,
@@ -285,6 +287,107 @@ void set_thread_normal(pthread_t pthread)
 	sp.sched_priority = 0;
 	if (pthread_setschedparam(pthread, SCHED_OTHER, &sp) == -1)
 		terminal_error("pthread_setschedparam");
+}
+
+int set_process_affinity( cpu_set_t *set ) {
+
+	int result = 0;
+	if ((result = sched_setaffinity(0, sizeof(cpu_set_t), set)) == -1) {
+		if (errno != EPERM)
+			terminal_error("sched_setaffinity");
+		fprintf(stderr, "could not set cpu affinity\n");
+	}
+	return result;
+}
+
+void __cpu_not(cpu_set_t *set) {
+	for( int i = 0 ; i < sizeof(cpu_set_t) ; i++)
+		CPU_ISSET(i, set) ? CPU_CLR(i, set) : CPU_SET(i, set);
+}
+#define CPU_NOT(set) __cpu_not(set)
+
+int __cpu_max(cpu_set_t *set) {
+	int index = -1;
+	for( int i = 0 ; i < sizeof(cpu_set_t) ; i++ ) {
+		if CPU_ISSET(i, set)
+			index = i;
+	}
+	return index;
+}
+#define CPU_MAX(set) __cpu_max(set)
+
+#define DEBUG_CPUSET 1
+#ifdef DEBUG_CPUSET
+void _dump_cpuset( const char *description, const cpu_set_t *cpuset ) {
+	printf("%20s [", description);
+	for ( int i = 0 ; i < 16 ; i++ )
+		printf("%c", CPU_ISSET(i, cpuset) ? '1' : ' ');
+	printf("]\n");
+}
+#define DUMP_CPUSET(x) _dump_cpuset(#x, x)
+#else
+#define DUMP_CPUSET(x)
+#endif
+
+
+void cpu_list2mask( cpu_set_t * set, const char *expression ) {
+	char *mask = strdup(expression);
+	char *tail = mask;
+	char *cluster = strtok_r(mask, ",", &tail);
+	CPU_ZERO(set);
+	/* cpu mask is a comma delimited list of cpu clusters */
+	while (cluster != NULL) {
+
+		/* cluster can be a single cpu or a cpu range */
+		char *last = cluster;
+		char *first = strtok_r(cluster, "-", &last);
+		if (first != NULL) {
+			last = strtok_r(NULL, "-", &last);
+			if (last != NULL) {
+				for( int i = atoi(first) ; i <= atoi(last) ; i++ )
+					CPU_SET(i, set);
+			}
+			else
+				CPU_SET(atoi(first), set);
+		}
+	
+		cluster = strtok_r(NULL, ",", &tail);
+	}
+	free(mask);
+}
+
+int set_cpu_mask( const char *expression ) {
+	cpu_set_t *online = &ud.cpuset_online;
+	cpu_set_t *isolated = &ud.cpuset_isolated;
+	cpu_set_t inverted;
+	cpu_list2mask(isolated, expression);
+	/* main already obtained online cpus */
+	memcpy(&inverted, isolated, sizeof (cpu_set_t));
+	CPU_NOT(&inverted);
+	CPU_AND(online, online, &inverted);
+	DUMP_CPUSET(isolated);
+	DUMP_CPUSET(online);
+}
+
+/*
+	musl uses sched_getaffinity for sysconf(_SC_NPROCESSORS_[CONF,ONLN]),
+	which will report a wrong count for systems using cpu isolation.
+	Read cpu status directly from sysfs instead.
+*/
+/* read configured cpus from /sys, because */
+int sys_cpu_mask( cpu_set_t *set, const char *fname ) {
+	int count = -1;
+	char cpu_list[32];
+	char sysfs_path[64] = "/sys/devices/system/cpu/";
+	strcat(sysfs_path, fname);
+	if (FILE *f = fopen(sysfs_path, "r")) {
+		if (fread(cpu_list, sizeof(char), sizeof(cpu_list), f) != -1) {
+			cpu_list2mask(set, cpu_list);
+			count = CPU_COUNT(set);
+		}
+		fclose(f);
+	}
+	return count;
 }
 
 void sync_flush(void)
@@ -691,7 +794,7 @@ void emulate_burn(struct thread *th)
 	t = th->threadno;
 	for (i = 0 ; i < ud.cpu_load ; i++) {
 		create_pthread(&burnthreads[i], NULL, burn_thread, (void*)(long) t);
-		pthread_setaffinity_np(burnthreads[i], sizeof(ud.cpumask), &ud.cpumask);
+		pthread_setaffinity_np(burnthreads[i], sizeof(ud.cpuset_online), &ud.cpuset_online);
 	}
 	wait_sem(s);
 	post_sem(&th->sem.stopchild);
@@ -835,7 +938,7 @@ void emulate_ring(struct thread *th)
 		create_pthread(&ringthreads[i].pthread, NULL, 
 			ring_thread, (void*)(long) i);
 		pthread_setaffinity_np(ringthreads[i].pthread, 
-			sizeof(ud.cpumask), &ud.cpumask);
+			sizeof(ud.cpuset_online), &ud.cpuset_online);
 	}
 
 	wait_sem(&ringthreads[0].sem.ready);
@@ -933,6 +1036,7 @@ void emulate_hackbench(struct thread *th)
 
 	init_all_sems(&hackthread.sem);
 	create_pthread(&hackthread.pthread, NULL, hackbench_thread, &ud.cpu_load);
+	pthread_setaffinity_np(hackthread.pthread, sizeof(ud.cpuset_online), &ud.cpuset_online);
 
 	wait_sem(s);
 
@@ -1030,8 +1134,8 @@ void *emulation_thread(const void *t)
 	init_all_sems(tks);
 
 	/* Start the timekeeping thread */
-	create_pthread(&th->tk_pthread, NULL, timekeeping_thread,
-		(void*)(long) i);
+	create_pthread(&th->tk_pthread, NULL, timekeeping_thread, (void*)(long) i);
+	pthread_setaffinity_np(th->tk_pthread, sizeof(ud.cpuset_single), &ud.cpuset_single);
 	/* Wait for timekeeping thread to be ready */
 	wait_sem(&tks->ready);
 
@@ -1069,23 +1173,9 @@ void calibrate_loop(int affinity)
 	float alpha = 0.3; /* moving average */
 	struct timespec myts;
 
-	/* if affinity is set, sched_setaffinity has already been called in main() */
-	if (! affinity) {
-		cpu_set_t cpumask;
-
-		CPU_ZERO(&cpumask);
-		CPU_SET(0, &cpumask);
-
-		/*
-		 * Perform loop calibration on one CPU only as switching CPUs may
-		 * make the value fluctuate too much to get a stable reading
-		 */
-		if (sched_setaffinity(0, sizeof(cpumask), &cpumask) == -1) {
-			if (errno != EPERM)
-				terminal_error("sched_setaffinity");
-			fprintf(stderr, "could not set cpu affinity\n");
-		}
-	}
+	/* if affinity is set, sched_setaffinity() has already been called in main() */
+	if (! affinity)
+		set_process_affinity(&ud.cpuset_single);
 
 	#define ACCURACY 0.01
 	#define LOOPS 1000U
@@ -1144,7 +1234,7 @@ redo:
 		loop_counter, redo_counter, accuracy);
 	ud.loops_per_ms = loops_per_msec;
 	if (! affinity)
-		sched_setaffinity(0, sizeof(ud.cpumask), &ud.cpumask);
+		set_process_affinity(&ud.cpuset_online);
 }
 
 void log_output(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
@@ -1430,6 +1520,7 @@ void initialise_thread(int i)
 	init_all_sems(&th->sem);
 	/* Create the threads. Yes, the (long) cast is fugly but it's safe*/
 	create_pthread(&th->pthread, NULL, emulation_thread, (void*)(long)i);
+	/* thread affinity is inherited from parent process */
 
 	wait_sem(&th->sem.ready);
 	/*
@@ -1603,7 +1694,7 @@ void init_pipes(void)
 
 void usage(void)
 {
-	fprintf(stderr, "interbench v " INTERBENCH_VERSION " by Con Kolivas\n");
+	fprintf(stderr, "interbench %s created by Con Kolivas\n", INTERBENCH_VERSION);
 	fprintf(stderr, "interbench [-l <int>] [-L <int>] [-t <int] [-B <int>] [-N <int>]\n");
 	fprintf(stderr, "\t[-b] [-c] [-r] [-C <int> -I <int>] [-m <comment>]\n");
 	fprintf(stderr, "\t[-w <load type>] [-x <load type>] [-W <bench>] [-X <bench>]\n");
@@ -1613,7 +1704,9 @@ void usage(void)
 	fprintf(stderr, " -t\tSeconds to run each benchmark (default: 30)\n");
 	fprintf(stderr, " -B\tNice the benchmarked thread to <int> (default: 0)\n");
 	fprintf(stderr, " -N\tNice the load thread to <int> (default: 0)\n");
-	fprintf(stderr, " -u\tImitate uniprocessor\n");
+	fprintf(stderr, " -u\tRun everything on first cpu (uniprocessor)\n");
+	fprintf(stderr, " -U\tDefine set of isolated cpus. Benchmarks will be run on the\n");
+	fprintf(stderr, "   \tisolated set, loads on all remaining cpus\n");
 	fprintf(stderr, " -b\tBenchmark loops_per_ms even if it is already known\n");
 	fprintf(stderr, " -c\tOutput to console only (default: use console and logfile)\n");
 	fprintf(stderr, " -r\tPerform real time scheduling benchmarks (default: non-rt)\n");
@@ -1689,6 +1782,8 @@ int main(int argc, char **argv)
 	 */
 	const char *fname = "interbench.loops_per_ms";
 	char *comment = NULL;
+	char *isolated = NULL;
+
 #ifdef DEBUG
 	feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
 	if (signal(SIGCHLD, deadchild) == SIG_ERR)
@@ -1700,10 +1795,11 @@ int main(int argc, char **argv)
 	if (pl == MAP_FAILED)
 		terminal_error("mmap");
 
-	ud.cpu_load = sysconf(_SC_NPROCESSORS_ONLN);
-	sched_getaffinity(0, sizeof(ud.cpumask), &ud.cpumask);
+	/* default is to use all available cpus for all tasks */
+	ud.cpu_load = sys_cpu_mask(&ud.cpuset_online, "online");
+	memcpy(&ud.cpuset_isolated, &ud.cpuset_online, sizeof(cpu_set_t));
 
-	while ((q = getopt(argc, argv, "hl:L:B:N:ut:bcnrC:I:m:w:x:W:X:")) != -1) {
+	while ((q = getopt(argc, argv, "hl:L:B:N:uU:t:bcnrC:I:m:w:x:W:X:")) != -1) {
 		switch (q) {
 			case 'h':
 				usage();
@@ -1725,6 +1821,9 @@ int main(int argc, char **argv)
 				break;
 			case 'u':
 				affinity = 1;
+				break;
+			case 'U':
+				isolated = optarg;
 				break;
 			case 'b':
 				benchmark = 1;
@@ -1777,7 +1876,6 @@ int main(int argc, char **argv)
 				set_bit_on(&excluded_benches, i);
 				break;
 			default:
-				usage();
 				return (1);
 		}
 	}
@@ -1791,6 +1889,13 @@ int main(int argc, char **argv)
 	if (selected_benches == 0)
 		selected_benches = (unsigned int)-1;
 	selected_benches &= ~excluded_benches;
+	/* do not use -u and -U simultaneously */
+	if (affinity == 1 && isolated != NULL) {
+		fprintf(stderr, 
+			"You cannot specify uniprocessor mode" \
+			" and isolated cpus at the same time.\n");
+		exit (1);
+	}
 
 	if (!test_fifo()) {
 		fprintf(stderr, "Unable to get SCHED_FIFO (real time scheduling).\n");
@@ -1821,21 +1926,26 @@ int main(int argc, char **argv)
 		threadlist[CUSTOM].rtload = 1;
 	}
 
+	/* use the last cpu, not cpu #0 for single processor use */
+	CPU_ZERO(&ud.cpuset_single);
+	CPU_SET(CPU_MAX(&ud.cpuset_isolated), &ud.cpuset_single);
+
 	if (affinity) {
-		cpu_set_t cpumask;
-
-		CPU_ZERO(&cpumask);
-		CPU_SET(0, &cpumask);
-
-		if (sched_setaffinity(0, sizeof(cpumask), &cpumask) == -1) {
-			if (errno != EPERM)
-				terminal_error("sched_setaffinity");
-			fprintf(stderr, "could not set cpu affinity\n");
-		}
-		/* if limited to one processor, also set the cpu load accordingly */
-		else
-			ud.cpu_load = 1;
+		memcpy(&ud.cpuset_isolated, &ud.cpuset_single, sizeof(cpu_set_t));
+		memcpy(&ud.cpuset_online, &ud.cpuset_single, sizeof(cpu_set_t));
+		int result = set_process_affinity(&ud.cpuset_single);
+		if (result != -1)
+			ud.cpu_load = CPU_COUNT(&ud.cpuset_single);
 	}
+	else if (isolated) {
+		set_cpu_mask(isolated);
+		int result = set_process_affinity(&ud.cpuset_isolated);
+		if (result != -1)
+			ud.cpu_load = CPU_COUNT(&ud.cpuset_online);
+	}
+	DUMP_CPUSET(&ud.cpuset_isolated);
+	DUMP_CPUSET(&ud.cpuset_online);
+	DUMP_CPUSET(&ud.cpuset_single);
 
 	/* Make benchmark a multiple of 10 seconds for proper range of X loads */
 	if (ud.duration % 10)
