@@ -22,7 +22,7 @@
 
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64	/* Large file support */
-#define INTERBENCH_VERSION	"0.31"
+#define INTERBENCH_VERSION "0.38"
 
 #include <stdio.h>
 #include <stdlib.h>
