@@ -106,7 +106,7 @@ typedef struct cumulative_latency {
 	unsigned long max_latency;
 	double variance[THREADS *(THREADS-1)];
 } latency_t;
-latency_t *pl;
+latency_t *pl = NULL;
 
 /* used to calculate median value, last slot contains overflow */
 unsigned long latency_histogram[HISTOGRAM_SIZE+1];
