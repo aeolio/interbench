@@ -2041,12 +2041,12 @@ loops_known:
 		if (!*benchme || !bit_is_on(selected_benches, i))
 			continue;
 
-		log_output("--- Benchmarking simulated cpu of %s ", threadlist[i].label);
+		log_output("--- Benchmarking simulated task '%s' ", threadlist[i].label);
 		if (ud.do_rt)
-			log_output("real time ");
+			log_output("r/t ");
 		else if (ud.bench_nice)
 			log_output("nice %d ", ud.bench_nice);
-		log_output("in the presence of simulated ");
+		log_output("with simulated load ");
 		if (ud.load_nice)
 			log_output("nice %d ", ud.load_nice);
 		log_output("---\n");
