@@ -330,15 +330,15 @@ void _dump_cpuset( const char *description, const cpu_set_t *cpuset ) {
 #endif
 
 
-void cpu_list2mask( cpu_set_t * set, const char *expression ) {
-	char *mask = strdup(expression);
-	char *tail = mask;
-	char *cluster = strtok_r(mask, ",", &tail);
+void cpu_list2set( cpu_set_t * set, const char *expression ) {
+	char *list = strdup(expression);
+	char *tail = list;
+	char *cluster = strtok_r(list, ",", &tail);
 	CPU_ZERO(set);
-	/* cpu mask is a comma delimited list of cpu clusters */
+	/* cpu list is a comma delimited list of cpu clusters */
 	while (cluster != NULL) {
 
-		/* cluster can be a single cpu or a cpu range */
+		/* cpu cluster can be a single cpu or a cpu range */
 		char *last = cluster;
 		char *first = strtok_r(cluster, "-", &last);
 		if (first != NULL) {
@@ -353,14 +353,14 @@ void cpu_list2mask( cpu_set_t * set, const char *expression ) {
 	
 		cluster = strtok_r(NULL, ",", &tail);
 	}
-	free(mask);
+	free(list);
 }
 
-int set_cpu_mask( const char *expression ) {
+int initialize_cpu_sets( const char *expression ) {
 	cpu_set_t *online = &ud.cpuset_online;
 	cpu_set_t *isolated = &ud.cpuset_isolated;
 	cpu_set_t inverted;
-	cpu_list2mask(isolated, expression);
+	cpu_list2set(isolated, expression);
 	/* main already obtained online cpus */
 	memcpy(&inverted, isolated, sizeof (cpu_set_t));
 	CPU_NOT(&inverted);
@@ -372,17 +372,16 @@ int set_cpu_mask( const char *expression ) {
 /*
 	musl uses sched_getaffinity for sysconf(_SC_NPROCESSORS_[CONF,ONLN]),
 	which will report a wrong count for systems using cpu isolation.
-	Read cpu status directly from sysfs instead.
+	Read cpu lists directly from sysfs instead.
 */
-/* read configured cpus from /sys, because */
-int sys_cpu_mask( cpu_set_t *set, const char *fname ) {
+int sys_configured_cpu_set( cpu_set_t *set, const char *fname ) {
 	int count = -1;
 	char cpu_list[32];
 	char sysfs_path[64] = "/sys/devices/system/cpu/";
 	strcat(sysfs_path, fname);
 	if (FILE *f = fopen(sysfs_path, "r")) {
 		if (fread(cpu_list, sizeof(char), sizeof(cpu_list), f) != -1) {
-			cpu_list2mask(set, cpu_list);
+			cpu_list2set(set, cpu_list);
 			count = CPU_COUNT(set);
 		}
 		fclose(f);
@@ -1455,7 +1454,7 @@ void get_filesize( void )
 				}
 			}
 		} else {
-		fprintf(stderr, "\nFailed to stat %s:\n", path);
+			fprintf(stderr, "\nFailed to stat %s:\n", path);
 	}
 }
 
@@ -1796,7 +1795,7 @@ int main(int argc, char **argv)
 		terminal_error("mmap");
 
 	/* default is to use all available cpus for all tasks */
-	ud.cpu_load = sys_cpu_mask(&ud.cpuset_online, "online");
+	ud.cpu_load = sys_configured_cpu_set(&ud.cpuset_online, "online");
 	memcpy(&ud.cpuset_isolated, &ud.cpuset_online, sizeof(cpu_set_t));
 
 	while ((q = getopt(argc, argv, "hl:L:B:N:uU:t:bcnrC:I:m:w:x:W:X:")) != -1) {
@@ -1938,7 +1937,7 @@ int main(int argc, char **argv)
 			ud.cpu_load = CPU_COUNT(&ud.cpuset_single);
 	}
 	else if (isolated) {
-		set_cpu_mask(isolated);
+		initialize_cpu_sets(isolated);
 		int result = set_process_affinity(&ud.cpuset_isolated);
 		if (result != -1)
 			ud.cpu_load = CPU_COUNT(&ud.cpuset_online);
