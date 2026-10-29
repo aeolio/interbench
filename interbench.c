@@ -1431,8 +1431,8 @@ void get_filesize( void )
 	struct statvfs fiData;
 	char path[256];
 
-	getcwd(path, sizeof(path));
-	if( (statvfs(path, &fiData)) == 0 ) {
+	if (getcwd(path, sizeof(path)) &&
+		statvfs(path, &fiData) == 0) {
 		if(fiData.f_bsize && fiData.f_bavail) {
 			ud.filesize = BLOCKS_TO_KIBIBYTES(fiData.f_bavail, fiData.f_bsize);
 			/* two files must co-exist, leave 2% margin */
