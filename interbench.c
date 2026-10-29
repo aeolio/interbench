@@ -301,16 +301,16 @@ int set_process_affinity( cpu_set_t *set ) {
 }
 
 void __cpu_not(cpu_set_t *set) {
-	for( int i = 0 ; i < sizeof(cpu_set_t) ; i++)
-		CPU_ISSET(i, set) ? CPU_CLR(i, set) : CPU_SET(i, set);
+	for( unsigned n = 0 ; n < sizeof(cpu_set_t) ; n++)
+		CPU_ISSET(n, set) ? CPU_CLR(n, set) : CPU_SET(n, set);
 }
 #define CPU_NOT(set) __cpu_not(set)
 
 int __cpu_max(cpu_set_t *set) {
 	int index = -1;
-	for( int i = 0 ; i < sizeof(cpu_set_t) ; i++ ) {
-		if CPU_ISSET(i, set)
-			index = i;
+	for( unsigned n = 0 ; n < sizeof(cpu_set_t) ; n++ ) {
+		if CPU_ISSET(n, set)
+			index = n;
 	}
 	return index;
 }
@@ -320,8 +320,8 @@ int __cpu_max(cpu_set_t *set) {
 #ifdef DEBUG_CPUSET
 void _dump_cpuset( const char *description, const cpu_set_t *cpuset ) {
 	printf("%20s [", description);
-	for ( int i = 0 ; i < 16 ; i++ )
-		printf("%c", CPU_ISSET(i, cpuset) ? '1' : ' ');
+	for ( unsigned n = 0 ; n < 16 ; n++ )
+		printf("%c", CPU_ISSET(n, cpuset) ? '1' : ' ');
 	printf("]\n");
 }
 #define DUMP_CPUSET(x) _dump_cpuset(#x, x)
@@ -356,7 +356,7 @@ void cpu_list2set( cpu_set_t * set, const char *expression ) {
 	free(list);
 }
 
-int initialize_cpu_sets( const char *expression ) {
+void initialize_cpu_sets( const char *expression ) {
 	cpu_set_t *online = &ud.cpuset_online;
 	cpu_set_t *isolated = &ud.cpuset_isolated;
 	cpu_set_t inverted;
@@ -380,7 +380,7 @@ int sys_configured_cpu_set( cpu_set_t *set, const char *fname ) {
 	char sysfs_path[64] = "/sys/devices/system/cpu/";
 	strcat(sysfs_path, fname);
 	if (FILE *f = fopen(sysfs_path, "r")) {
-		if (fread(cpu_list, sizeof(char), sizeof(cpu_list), f) != -1) {
+		if (fread(cpu_list, sizeof(char), sizeof(cpu_list), f)) {
 			cpu_list2set(set, cpu_list);
 			count = CPU_COUNT(set);
 		}
