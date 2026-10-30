@@ -316,7 +316,6 @@ int __cpu_max(cpu_set_t *set) {
 }
 #define CPU_MAX(set) __cpu_max(set)
 
-#define DEBUG_CPUSET 1
 #ifdef DEBUG_CPUSET
 void _dump_cpuset( const char *description, const cpu_set_t *cpuset ) {
 	printf("%20s [", description);
@@ -365,8 +364,6 @@ void initialize_cpu_sets( const char *expression ) {
 	memcpy(&inverted, isolated, sizeof (cpu_set_t));
 	CPU_NOT(&inverted);
 	CPU_AND(online, online, &inverted);
-	DUMP_CPUSET(isolated);
-	DUMP_CPUSET(online);
 }
 
 /*
